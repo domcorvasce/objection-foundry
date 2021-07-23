@@ -29,10 +29,41 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
   /**
    * Creates fake data in accordance with the factory schema.
    *
-   * @return {object|array<object>} Fake data
+   * @param {object} attributes Attributes' values
+   * @return {promise<object>} Fake data
    */
-  static create() {
-    return {};
+  static async create(attributes) {
+    // Clone factory schema
+    let record = { ...this.factorySchema };
+
+    // Merge user's attributes
+    record = Object.assign(record, attributes);
+
+    for (const [key, value] of Object.entries(record)) {
+      // Resolves a function if it is provided as the value
+      if (typeof value === 'function') {
+        record[key] = value();
+      }
+    }
+
+    return record;
+  }
+
+  /**
+   * Returns a collection of fake data in accordance with the factory schema.
+   *
+   * @param {number} len Length of the collection
+   * @param {number} mapper A function that processes the collection
+   * @return {promise<array>} Collection of fake data
+   */
+  static async count(len, transformer = null) {
+    const collection = [];
+
+    for (let i = 0; i < len; i += 1) {
+      collection.push(await this.create());
+    }
+
+    return !transformer ? collection : collection.map(transformer);
   }
 
   /**
