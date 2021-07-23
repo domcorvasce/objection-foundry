@@ -13,6 +13,8 @@ module.exports = {
   rules: {
     'class-methods-use-this': 'off',
     'no-restricted-syntax': 'off',
-    'no-await-in-loop': 'off'
+    'no-await-in-loop': 'off',
+    'no-underscore-dangle': 'off',
+    'no-param-reassign': 'off'
   },
 };

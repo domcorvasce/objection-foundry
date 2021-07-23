@@ -33,14 +33,25 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
    * @return {promise<object>} Fake data
    */
   static async create(attributes) {
-    // Clone factory schema
+    // Clone factory schema and merge user's attributes
     let record = { ...this.factorySchema };
-
-    // Merge user's attributes
     record = Object.assign(record, attributes);
 
-    for (const [key, value] of Object.entries(record)) {
-      // Resolves a function if it is provided as the value
+    // Iterate over each attribute and resolve its value
+    const keys = Object.keys(record);
+
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      const value = record[key];
+
+      // Resolves model relations
+      if (key.startsWith('$has') || key.startsWith('$for')) {
+        const { localKey, localKeyVal } = await this._resolveRelation(key, value);
+        record[localKey] = localKeyVal;
+        delete record[key];
+      }
+
+      // Resolves a function
       if (typeof value === 'function') {
         record[key] = value();
       }
@@ -50,17 +61,67 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
   }
 
   /**
+   * Resolves a model relation.
+   *
+   * @param {string} key
+   * @param {*} value
+   * @return {object} The name of local key and its value
+   */
+  static async _resolveRelation(key, value) {
+    // Get the relation name from the key name
+    // The library supports both camelCase ($hasFooBar) and snake_case ($has_foo_bar)
+    let relationName = key.replace(/\$(has|for)(_|)/, '');
+    relationName = relationName.charAt(0).toLowerCase() + relationName.slice(1);
+
+    const relation = this.relationMappings[relationName];
+
+    // Throws an error if the relation is not defined
+    // We already assume that the user has defined the `relationMappings` attribute
+    if (!relation) {
+      throw new Error(`The relation "${relationName}" is not defined`);
+    }
+
+    // Fetches the names of the local and foreign keys
+    const { join } = relation;
+    const localKey = join.from.split('.')[1];
+    const foreignKey = join.to.split('.')[1];
+
+    let localKeyVal;
+
+    // If the user provided a literal value, we use that to resolve the relation
+    if (typeof value === 'number' || typeof value === 'string') {
+      localKeyVal = value;
+    }
+
+    // If the user provided an instance of the relation model
+    // then we just need to fetch the value of the foreign key and use that to resolve the relation
+    if (value instanceof relation.modelClass) {
+      localKeyVal = value[foreignKey];
+    }
+
+    if (!localKeyVal) {
+      throw new Error(`Unable to resolve the "${relationName}" relation`);
+    }
+
+    return { localKey, localKeyVal };
+  }
+
+  /**
    * Returns a collection of fake data in accordance with the factory schema.
    *
    * @param {number} len Length of the collection
-   * @param {number} mapper A function that processes the collection
+   * @param {object} attributes
    * @return {promise<array>} Collection of fake data
    */
-  static async count(len, transformer = null) {
+  static async count(len, attributes = {}) {
     const collection = [];
+    const transformer = attributes.$transform;
+
+    // Get rid of unnecessary special attributes
+    delete attributes.$transform;
 
     for (let i = 0; i < len; i += 1) {
-      collection.push(await this.create());
+      collection.push(await this.create(attributes));
     }
 
     return !transformer ? collection : collection.map(transformer);

@@ -29,6 +29,13 @@ describe('Factory#create', () => {
     });
   });
 
+  it('permits overriding attributes for a single record', async () => {
+    const record = await ModelFactory.create({ firstName: 'Ivy' });
+    expect(record.firstName).toEqual('Ivy');
+  });
+});
+
+describe('Factory#count', () => {
   it('returns a collection of fake data', async () => {
     const records = await ModelFactory.count(3);
 
@@ -47,15 +54,12 @@ describe('Factory#create', () => {
     });
   });
 
-  it('permits overriding attributes for a single record', async () => {
-    const record = await ModelFactory.create({ firstName: 'Ivy' });
-    expect(record.firstName).toEqual('Ivy');
-  });
-
   it('permits overriding attributes for a collection of records', async () => {
-    const records = await ModelFactory.count(3, (record, _) => {
-      record.firstName = 'Ivy';
-      return record;
+    const records = await ModelFactory.count(3, {
+      $transform: (record, _) => {
+        record.firstName = 'Ivy';
+        return record;
+      },
     });
 
     for (const record of records) {
