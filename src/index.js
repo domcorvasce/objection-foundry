@@ -46,7 +46,12 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
 
       // Resolves model relations
       if (key.startsWith('$has') || key.startsWith('$for')) {
-        const { localKey, localKeyVal } = await this._resolveRelation(key, value);
+        const { localKey, localKeyVal } = await this._resolveRelation(
+          record[this.idColumn],
+          key,
+          value,
+        );
+
         record[localKey] = localKeyVal;
         delete record[key];
       }
@@ -63,11 +68,12 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
   /**
    * Resolves a model relation.
    *
-   * @param {string} key
-   * @param {*} value
+   * @param {number|string} id Record ID
+   * @param {string} key Special attribute key (e.g. $hasPets, $forUser)
+   * @param {number|string|object} value Attribute value (literals or instance of models)
    * @return {object} The name of local key and its value
    */
-  static async _resolveRelation(key, value) {
+  static async _resolveRelation(id, key, value) {
     // Get the relation name from the key name
     // The library supports both camelCase ($hasFooBar) and snake_case ($has_foo_bar)
     let relationName = key.replace(/\$(has|for)(_|)/, '');
@@ -88,15 +94,31 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
 
     let localKeyVal;
 
-    // If the user provided a literal value, we use that to resolve the relation
-    if (typeof value === 'number' || typeof value === 'string') {
-      localKeyVal = value;
+    // Belongs to relations
+    if (key.startsWith('$for')) {
+      // If the user provided a literal value, we use that to resolve the relation
+      if (typeof value === 'number' || typeof value === 'string') {
+        localKeyVal = value;
+      }
+
+      // If the user provided an instance of the relation model
+      // then we just need to fetch the value of the foreign key and use that to resolve the relation
+      if (value instanceof relation.modelClass) {
+        localKeyVal = value[foreignKey];
+      }
     }
 
-    // If the user provided an instance of the relation model
-    // then we just need to fetch the value of the foreign key and use that to resolve the relation
-    if (value instanceof relation.modelClass) {
-      localKeyVal = value[foreignKey];
+    // If the user wants to initialize multiple relations
+    // This is only allowed for one-to-many relations using `$has*` attributes
+    if (key.startsWith('$has') && typeof value === 'number') {
+      localKeyVal = [];
+
+      for (let i = 0; i < value; i += 1) {
+        localKeyVal.push(await relation.modelClass.create({ [foreignKey]: id }));
+      }
+
+      // Returns a collection of relation instances instead of the local key
+      return { localKey: relationName, localKeyVal };
     }
 
     if (!localKeyVal) {

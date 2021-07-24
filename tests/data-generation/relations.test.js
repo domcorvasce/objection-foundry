@@ -25,7 +25,7 @@ describe('Factory#create', () => {
     throw new Error('Expected an error. None thrown');
   });
 
-  it('resolves a relation using a literal value', async () => {
+  it('resolves relation using a literal value', async () => {
     const creditCards = await CreditCard.count(3, {
       $forOwner: 2,
     });
@@ -35,7 +35,7 @@ describe('Factory#create', () => {
     });
   });
 
-  it('resolves a relation using an instance of the model', async () => {
+  it('resolves relation using an instance of the model', async () => {
     const person = new Person();
     person.id = 3;
 
@@ -44,5 +44,18 @@ describe('Factory#create', () => {
     });
 
     expect(creditCard.ownerId).toEqual(3);
+  });
+
+  it('resolves one-to-many relation', async () => {
+    const person = await Person.create({
+      id: 2,
+      $hasCreditCards: 3,
+    });
+
+    expect(person.creditCards.length).toEqual(3);
+
+    person.creditCards.forEach((creditCard) => {
+      expect(creditCard.ownerId).toEqual(person.id);
+    });
   });
 });
