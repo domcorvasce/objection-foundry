@@ -94,7 +94,7 @@ module.exports = (baseClass, config = {}) => class extends baseClass {
         relations.push(relationName);
       } else if (key.startsWith('$has')) {
         // Postpone the resolution until we have the parent record from which we can fetch
-        // the local key to satisfy the relationship.
+        // the local key to satisfy the relation.
         postponedResolutions.push({ key, value });
         delete attributes[key];
       } else if (typeof value === 'function') {
@@ -176,7 +176,7 @@ module.exports = (baseClass, config = {}) => class extends baseClass {
 
     // If we were not able to satisfy the relation
     if (!localKeyVal) {
-      throw new Error(this._getRelationshipResolutionError(relationName));
+      throw new Error(this._getRelationResolutionError(relationName));
     }
 
     return { localKey, localKeyVal, relationName };
@@ -212,7 +212,7 @@ module.exports = (baseClass, config = {}) => class extends baseClass {
 
     // If we were not able to satisfy the relation
     if (!localKeyVal) {
-      throw new Error(this._getRelationshipResolutionError(relationName));
+      throw new Error(this._getRelationResolutionError(relationName));
     }
 
     return { localKey: relationName, localKeyVal, relationName };
