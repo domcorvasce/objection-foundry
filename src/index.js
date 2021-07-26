@@ -33,6 +33,9 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
    * @return {promise<object>} Fake data
    */
   static async create(attributes) {
+    const eagers = [];
+    const oneToManyRelations = [];
+
     // Clone factory schema and merge user's attributes
     let record = { ...this.factorySchema };
     record = Object.assign(record, attributes);
@@ -44,22 +47,52 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
       const key = keys[i];
       const value = record[key];
 
-      // Resolves model relations
-      if (key.startsWith('$has') || key.startsWith('$for')) {
-        const { localKey, localKeyVal } = await this._resolveRelation(
-          record[this.idColumn],
-          key,
-          value,
-        );
+      // Resolves belongs-to relations
+      if (key.startsWith('$for')) {
+        const result = await this._resolveRelation(null, key, value);
+        const { localKey, localKeyVal, relationName } = result;
 
         record[localKey] = localKeyVal;
+        eagers.push(relationName);
+
         delete record[key];
+        continue;
+      }
+
+      // Postpones resolving one-to-many relations after the parent record has been created
+      if (key.startsWith('$has')) {
+        oneToManyRelations.push({ key, value });
+        continue;
       }
 
       // Resolves a function
       if (typeof value === 'function') {
         record[key] = value();
       }
+    }
+
+    // Write record to the database if a connection is available
+    if (this.knex()) {
+      record = await this.query().insert(record);
+    }
+
+    // Resolves has-many relations
+    for (let i = 0; i < oneToManyRelations.length; i += 1) {
+      const { key, value } = oneToManyRelations[i];
+
+      const result = await this._resolveRelation(record[this.idColumn], key, value);
+      const { localKey, localKeyVal, relationName } = result;
+
+      record[localKey] = localKeyVal;
+      eagers.push(relationName);
+    }
+
+    // Fetches related records when dealing with records written to the database
+    if (this.knex()) {
+      record = await this.query()
+        .where('id', record[this.idColumn])
+        .withGraphFetched(`[${eagers.join(',')}]`)
+        .first();
     }
 
     return record;
@@ -94,17 +127,29 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
 
     let localKeyVal;
 
+    // Bind database to the relation models
+    if (this.knex()) {
+      relation.modelClass.knex(this.knex());
+    }
+
     // Belongs to relations
     if (key.startsWith('$for')) {
-      // If the user provided a literal value, we use that to resolve the relation
       if (typeof value === 'number' || typeof value === 'string') {
+        // If the user provided a literal value, we use that to resolve the relation
         localKeyVal = value;
-      }
-
-      // If the user provided an instance of the relation model
-      // then we just need to fetch the value of the foreign key and use that to resolve the relation
-      if (value instanceof relation.modelClass) {
+      } else if (value instanceof relation.modelClass) {
+        // If the user provided an instance of the relation model
+        // then we just need to fetch the value of the foreign key
+        // and use that to resolve the relation
         localKeyVal = value[foreignKey];
+      } else if (typeof value === 'object') {
+        // Autoresolve the relation using the provided object
+        const record = await relation.modelClass.create(value);
+        localKeyVal = record[foreignKey];
+      } else if (value === true) {
+        // Autoresolve the relation without any data
+        const record = await relation.modelClass.create();
+        localKeyVal = record[foreignKey];
       }
     }
 
@@ -118,14 +163,14 @@ module.exports = (modelClass, config = {}) => class extends modelClass {
       }
 
       // Returns a collection of relation instances instead of the local key
-      return { localKey: relationName, localKeyVal };
+      return { localKey: relationName, localKeyVal, relationName };
     }
 
     if (!localKeyVal) {
       throw new Error(`Unable to resolve the "${relationName}" relation`);
     }
 
-    return { localKey, localKeyVal };
+    return { localKey, localKeyVal, relationName };
   }
 
   /**
