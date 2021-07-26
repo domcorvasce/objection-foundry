@@ -1,5 +1,7 @@
 const Factory = require('../src/index');
 const { Model } = require('objection');
+const createDB = require('./fixtures/create-db');
+const Person = require('./fixtures/models/person');
 
 const ModelFactory = class extends Factory(Model) {
   static get factorySchema() {
@@ -13,6 +15,17 @@ const ModelFactory = class extends Factory(Model) {
 };
 
 describe('Factory#create', () => {
+  let db;
+
+  beforeAll(async () => {
+    db = await createDB();
+    Person.knex(db);
+  });
+
+  afterAll(() => {
+    db.destroy();
+  });
+
   it('returns an empty object if the factory schema is empty', async () => {
     const EmptyModelFactory = Factory(Model);
     const record = await EmptyModelFactory.create();
@@ -32,6 +45,30 @@ describe('Factory#create', () => {
   it('permits overriding attributes for a single record', async () => {
     const record = await ModelFactory.create({ firstName: 'Ivy' });
     expect(record.firstName).toEqual('Ivy');
+  });
+
+  it('writes to the database', async () => {
+    const person = await Person.create();
+    const people = await Person.query().select();
+
+    expect(people.length).toEqual(1);
+    expect(people[0].id).toEqual(person.id);
+
+    // Clear for next test
+    await Person.query().delete();
+  });
+
+  it('removes records from the database', async () => {
+    const person = await Person.create();
+    let results = [];
+
+    results = await Person.query().select();
+    expect(results.length).toEqual(1);
+
+    await person.destroy();
+
+    results = await Person.query().select();
+    expect(results.length).toEqual(0);
   });
 });
 
