@@ -76,6 +76,28 @@ const user = await User.create();
 await user.destroy(); //=> true
 ```
 
+## Relations
+
+This library only supports **belongs to** and **has many** relations. Suppose you have two models: `User` and `Post`, which you linked together through the following [relation mappings](https://vincit.github.io/objection.js/guide/relations.html):
+
+| Model  | Relation name | From            | To              | Type       |
+| ------ | ------------- | --------------- | --------------- | ---------- |
+| `Post` | `user`        | `posts.user_id` | `users.id`      | Belongs to |
+| `User` | `posts`       | `users.id`      | `posts.user_id` | Has many   |
+
+Then you can build a relation by passing a special attribute&mdash;which starts with either `$has` or `$for`&mdash;to the `create` and `count` methods. These special attributes build **has many** and **belongs to** relations, respectively.
+
+Attributes starting with `$has` accept an integer which represents the amount of records to create. Attributes starting with `$for` accept literal values (e.g. `2`) or model instances.
+
+```js
+const user = await User.create({
+    $hasPosts: 3,
+});
+
+const post = await Post.create({ $forUser: 3 }); // Post { userId: 3, ... }
+const posts = await Post.count(3, { $forUser: user });
+```
+
 ## License
 
 objection-foundry is released under the [MIT License](./LICENSE).
