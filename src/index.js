@@ -1,4 +1,4 @@
-const faker = require('faker');
+const faker = require('@faker-js/faker');
 
 /**
  * Extends the Objection.js' model class, adding support to model factories.

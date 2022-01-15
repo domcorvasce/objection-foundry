@@ -26,7 +26,7 @@ class User extends Factory(Model) {
 
 You must also define the **factory schema** which is used as blueprint when generating fake data. The factory schema is stored in the `factorySchema` static attribute.
 
-The attribute is a plain old JavaScript object. Each key represents a column, and each value is either a [Faker.js](https://github.com/marak/Faker.js/#api-methods) method or a literal value (e.g. `2` or `"john.doe@example.com"`).
+The attribute is a plain old JavaScript object. Each key represents a column, and each value is either a [Faker.js](https://github.com/faker-js/faker#api-methods) method or a literal value (e.g. `2` or `"john.doe@example.com"`).
 
 ```js
 class User extends Factory(Model) {
